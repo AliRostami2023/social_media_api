@@ -1,10 +1,11 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import OtpCode, PasswordResetToken, ProfileUser
-from .random_code import random_code_otp
-from datetime import datetime, timedelta
+from django.utils.translation import gettext_lazy as _
 from django.urls import reverse_lazy
 from django.core.mail import send_mail
+from datetime import datetime, timedelta
+from .models import OtpCode, PasswordResetToken, ProfileUser
+from .random_code import random_code_otp
 
 
 User = get_user_model()
@@ -41,16 +42,16 @@ class VerifyCodeSerializers(serializers.ModelSerializer):
         try:
             user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
-            raise serializers.ValidationError('user not found')
+            raise serializers.ValidationError(_('user not found'))
         
         otp = OtpCode.objects.filter(user=user, code=code).first()
 
         if not otp:
-            raise serializers.ValidationError('Invalid otp code !')
+            raise serializers.ValidationError(_('Invalid otp code !'))
                 
         if otp.expired_date_over:
             otp.delete_otp
-            raise serializers.ValidationError('otp code has expired !')
+            raise serializers.ValidationError(_('otp code has expired !'))
         
         user.is_active = True
         user.save()
@@ -67,7 +68,7 @@ class PasswordResetRequestSerializers(serializers.Serializer):
         try:
             User.objects.get(email=value)
         except User.DoesNotExist:
-            raise serializers.ValidationError('There are no user with this email !!!')
+            raise serializers.ValidationError(_('There are no user with this email !!!'))
         return value
     
 
@@ -100,9 +101,9 @@ class PasswordResetConfirmSerializers(serializers.Serializer):
         password2 = attrs['confirm_new_password']
 
         if password1 and password1 != password2:
-            raise serializers.ValidationError('passwords must be match !!!')
+            raise serializers.ValidationError(_('passwords must be match !!!'))
         elif len(password1) < 8:
-            raise serializers.ValidationError('password must be more 8 char or numbers !!!')
+            raise serializers.ValidationError(_('password must be more 8 char or numbers !!!'))
         return password1
 
 
@@ -110,10 +111,10 @@ class PasswordResetConfirmSerializers(serializers.Serializer):
         try:
             reset_token = PasswordResetToken.objects.get(is_used=False, token=value)
         except PasswordResetToken.DoesNotExist:
-            raise serializers.ValidationError('invalid or expired token')
+            raise serializers.ValidationError(_('invalid or expired token'))
 
         if not reset_token.is_valid():
-            raise serializers.ValidationError('token has expired')
+            raise serializers.ValidationError(_('token has expired'))
         return value
 
 
@@ -134,7 +135,7 @@ class ResendCodeSerializers(serializers.Serializer):
         try:
             User.objects.get(phone_number=value)
         except User.DoesNotExist:
-            raise  serializers.ValidationError("User with this phone number does not exist !")
+            raise  serializers.ValidationError(_("User with this phone number does not exist !"))
         return value
 
 

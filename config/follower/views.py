@@ -1,20 +1,18 @@
-from rest_framework import viewsets, mixins
-from .serializers import FollowerSerializers, NotificationsSerializers
-from rest_framework import permissions
-from .models import Follower, Notification
-from rest_framework import status
+from rest_framework import viewsets, mixins, permissions, status
 from rest_framework.response import Response
-from django.core.exceptions import ValidationError
-from .tasks import create_notifications_task
 from django.contrib.auth import get_user_model
-
+from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
+from .serializers import FollowerSerializers, NotificationsSerializers
+from .models import Follower, Notification
+from .tasks import create_notifications_task
 
 
 User = get_user_model()
 
 
 class FollowerViewSet(viewsets.ModelViewSet):
-    queryset = Follower.objects.select_related('follower', 'followed').all()
+    queryset = Follower.objects.select_related('follower', 'followed')
     serializer_class = FollowerSerializers
     permission_classes = [permissions.IsAuthenticated]
 
@@ -34,18 +32,18 @@ class FollowerViewSet(viewsets.ModelViewSet):
         followed_id = request.data.get('followed')
 
         if not followed_id:
-            return Response({'error': 'The followed user ID is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _('The followed user ID is required.')}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             followed_id = int(followed_id)
         except ValueError:
-            return Response({'error': 'Invalid followed user ID.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _('Invalid followed user ID.')}, status=status.HTTP_400_BAD_REQUEST)
 
         if follower.id == followed_id:
-            return Response({'error': 'you cant follow yourself'}, status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _('you cant follow yourself')}, status.HTTP_400_BAD_REQUEST)
         
         if Follower.objects.filter(follower=follower, followed_id=followed_id).exists():
-            return Response({'error': 'you are already following this user'}, status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _('you are already following this user')}, status.HTTP_400_BAD_REQUEST)
         
         Follower.objects.create(follower=follower, followed_id=followed_id)
 
@@ -68,20 +66,20 @@ class FollowerViewSet(viewsets.ModelViewSet):
         try:
             instance = Follower.objects.get(follower=follower, followed_id=followed_id)
             instance.delete()
-            return Response({'status': 'unfollowed'}, status.HTTP_200_OK)
+            return Response({'status': _('unfollowed')}, status.HTTP_200_OK)
         except Follower.DoesNotExist:
-            return Response({'error': 'you are not following this user'}, status.HTTP_400_BAD_REQUEST)
+            return Response({'error': _('you are not following this user')}, status.HTTP_400_BAD_REQUEST)
         
 
-    def get_permissions(self):
+    def get_permissions(self, *args, **kwargs):
         if self.request.method == 'GET':
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+        return super().get_permissions(*args, **kwargs)
 
 
 
 class NotificationsViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
-    queryset = Notification.objects.select_related('recipient', 'sender', 'post').all()
+    queryset = Notification.objects.select_related('recipient', 'sender', 'post')
     serializer_class = NotificationsSerializers
     permission_classes = [permissions.IsAuthenticated]
 
@@ -96,28 +94,28 @@ class NotificationsViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, views
 
         if instance.notification_type == 'follow':
             recipient_id = instance.recipient.id
-            message = f"{self.request.user.username} started following you !"
+            message = _(f"{self.request.user.username} started following you !")
         
         elif instance.notification_type == 'comment':
             if not instance.post:
-                raise ValidationError("Post is required for a 'comment' notification.")
+                raise ValidationError(_("Post is required for a 'comment' notification."))
             recipient_id = instance.post.user.id
-            message = f"{self.request.user.username} commented on your post !"
+            message = _(f"{self.request.user.username} commented on your post !")
 
         elif instance.notification_type == 'like':
             if not instance.post:
-                raise ValidationError("Post is required for a 'like' notification.")
+                raise ValidationError(_("Post is required for a 'like' notification."))
             recipient_id = instance.post.user.id
-            message = f"{self.request.user.username} liked your post."
+            message = _(f"{self.request.user.username} liked your post.")
         
         elif instance.notification_type == 'share':
             if not instance.post:
-                raise ValidationError('Post is required for a "share" notification.')
+                raise ValidationError(_('Post is required for a "share" notification.'))
             recipient_id = instance.post.user.id
-            message = f"{self.request.user.username} shared your post."
+            message = _(f"{self.request.user.username} shared your post.")
 
         else:
-            raise ValidationError("Invalid notification type.")
+            raise ValidationError(_("Invalid notification type."))
         
 
         create_notifications_task.delay(

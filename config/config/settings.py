@@ -173,7 +173,6 @@ INTERNAL_IPS = [
 
 
 # celery settings :
-
 CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672/'
 CELERY_RESULT_BACKEND = 'rpc://'
 CELERY_ACCEPT_CONTENT = ['json']
@@ -188,5 +187,4 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'This api include authentication, post, comment, like, follow, notifications and ...',
     'VERSION': '1.0.1',
     'SERVE_INCLUDE_SCHEMA': False,
-    # OTHER SETTINGS
 }

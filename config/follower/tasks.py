@@ -1,6 +1,7 @@
 from celery import shared_task
-from .models import Notification
+from django.utils.translation import gettext_lazy as _
 from django.contrib.auth import get_user_model
+from .models import Notification
 from post.models import Post
 
 
@@ -21,7 +22,7 @@ def create_notifications_task(recipient_id, sender_id, notification_type, post_i
             post = post,
             message = message
         )
-        return "Notification created successfully"
+        return _("Notification created successfully")
 
     except User.DoesNotExist:
         pass
