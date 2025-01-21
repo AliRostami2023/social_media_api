@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from slugify import slugify
-
+from core.models import CreateMixin, UpdateMixin
 
 User = get_user_model()
 
@@ -19,15 +19,13 @@ class PostManager(models.Manager):
         return self.filter(public=True)
 
 
-class Post(models.Model):
+class Post(CreateMixin, UpdateMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='post_user')
     title = models.CharField(max_length=300, verbose_name=_('title'))
     slug = models.CharField(max_length=50, unique=True, verbose_name=_('slug'))
     description = models.TextField(max_length=2048, verbose_name=_('description'), null=True, blank=True)
     image = models.ImageField(upload_to='post_image/%y/%m/%d', verbose_name=_('image'), null=True)
     video = models.FileField(upload_to='video_post/%y/%m/%d', verbose_name=_('video'), null=True)
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
     public = models.BooleanField(default=True, verbose_name=_('public / private'))
     hashtag = models.ManyToManyField(Hashtag, related_name='hashtag_post', verbose_name=_('hashtags'))
     orginal_post = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='shared_post')
@@ -55,23 +53,20 @@ class Post(models.Model):
 
 
 
-class LikePost(models.Model):
+class LikePost(CreateMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_like')
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='post_like')
-    created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
         return self.user.username
 
 
 
-class Comment(models.Model):
+class Comment(CreateMixin, UpdateMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cuser')
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='cpost')
     body = models.TextField(max_length=1024, verbose_name=_('content'))
     parent = models.ForeignKey('self', related_name='reply', on_delete=models.CASCADE, null=True)
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         return f"{self.user.username} - {self.body[:20]}"
