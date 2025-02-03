@@ -1,8 +1,8 @@
 from django.contrib.auth import get_user_model
-from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.urls import reverse_lazy
 from django.core.mail import send_mail
+from rest_framework import serializers
 from datetime import datetime, timedelta
 from .models import OtpCode, PasswordResetToken, ProfileUser
 from .random_code import random_code_otp

@@ -1,17 +1,15 @@
-from rest_framework import viewsets, mixins, generics
-from .serializers import *
-from .models import *
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from .permissions import IsAuthorOrReadOnly
+from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
-from rest_framework import status
+from rest_framework import viewsets, mixins, generics, status, permissions
 from rest_framework.response import Response
+from rest_framework.filters import SearchFilter
+from uuid import uuid4
 from .paginations import PostPaginations, CommentPaginations
 from follower.views import NotificationsViewSet
 from follower.serializers import NotificationsSerializers
-from uuid import uuid4
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter
+from .serializers import *
+from .models import *
+from .permissions import IsAuthorOrReadOnly
 
 
 
@@ -37,7 +35,7 @@ class PostViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
             return [IsAuthorOrReadOnly()]
-        return [AllowAny()]
+        return [permissions.AllowAny()]
     
 
 
@@ -52,7 +50,7 @@ class ExplorePostViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, views
 class CommentCreateListApiView(generics.ListCreateAPIView):
     serializer_class = CommentSerializers
     queryset = Comment.objects.prefetch_related('parent', 'user', 'post')
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = CommentPaginations
 
 
@@ -79,12 +77,12 @@ class CommentDetailUpdateApiView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [IsAuthorOrReadOnly()]
-        return [IsAuthenticated()]
+        return [permissions.IsAuthenticated()]
 
 
 
 class LikeViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     queryset = LikePost.objects.select_related('user', 'post')
     serializer_class = LikePostSerializers
 
@@ -128,7 +126,7 @@ class LikeViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.Ge
 class RepostViewSet(viewsets.ModelViewSet):
     serializer_class = RepostSerializers
     queryset = Post.objects.select_related('user', 'orginal_post')
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
 
     def create(self, request, post_pk=None):

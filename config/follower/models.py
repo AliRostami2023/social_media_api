@@ -2,11 +2,12 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from post.models import Post
+from core.models import CreateMixin
 
 User = get_user_model()
 
 
-class Follower(models.Model):
+class Follower(CreateMixin):
     follower = models.ForeignKey(User, verbose_name=_('follower'), related_name='following', on_delete=models.CASCADE)
     followed = models.ForeignKey(User, verbose_name=_('following'), related_name='followers', on_delete=models.CASCADE)
 

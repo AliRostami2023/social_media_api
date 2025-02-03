@@ -1,13 +1,14 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
-from .managers import UserManager
 from datetime import datetime, timedelta
 import uuid
+from .managers import UserManager
+from core.models import CreateMixin, UpdateMixin
 
 
 
-class User(AbstractBaseUser):
+class User(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(_('phone number'), max_length=11, unique=True, blank=True)
     username = models.CharField(max_length=120, unique=True, verbose_name=_('username'))
     email = models.EmailField(max_length=300, unique=True, null=True, blank=True, verbose_name=_('email'))
@@ -81,7 +82,7 @@ class PasswordResetToken(models.Model):
 
 
 
-class ProfileUser(models.Model):
+class ProfileUser(CreateMixin, UpdateMixin):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile_user', verbose_name=_('user'))
     full_name = models.CharField(max_length=300, verbose_name=_('full name'))
     avatar = models.ImageField(upload_to='avatar_user/%y/%m/%d', null=True, blank=True, verbose_name=_('avatar user'))
@@ -93,8 +94,6 @@ class ProfileUser(models.Model):
 
     gender = models.CharField(max_length=6, choices=Gender, verbose_name=_('gender'))
     birthday = models.DateField(null=True, blank=True, verbose_name=_('birthday'))
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
 
 
     def __str__(self) -> str:
