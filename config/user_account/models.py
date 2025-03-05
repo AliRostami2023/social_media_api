@@ -45,7 +45,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     
 
 
-class OtpCode(models.Model):
+class OtpCode(CreateMixin):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='otpuser', verbose_name=_('user'))
     code = models.PositiveIntegerField(_('code'))
     expired_date = models.DateTimeField(_('expired date'))
@@ -69,10 +69,9 @@ class OtpCode(models.Model):
     
 
 
-class PasswordResetToken(models.Model):
+class PasswordResetToken(CreateMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset')
     token = models.UUIDField(unique=True, default=uuid.uuid4)
-    created = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
 
 

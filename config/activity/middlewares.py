@@ -1,8 +1,8 @@
 from django.utils import timezone
-from django.urls import resolve
-from .models import Activity
-from django.contrib.auth import get_user_model
 from django.utils.deprecation import MiddlewareMixin
+from django.urls import resolve
+from django.contrib.auth import get_user_model
+from .models import Activity
 from .tasks import log_activity_task
 
 User = get_user_model()

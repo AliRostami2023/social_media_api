@@ -4,9 +4,9 @@ from rest_framework import viewsets, mixins, generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter
 from uuid import uuid4
-from .paginations import PostPaginations, CommentPaginations
 from follower.views import NotificationsViewSet
 from follower.serializers import NotificationsSerializers
+from .paginations import PostPaginations, CommentPaginations
 from .serializers import *
 from .models import *
 from .permissions import IsAuthorOrReadOnly
