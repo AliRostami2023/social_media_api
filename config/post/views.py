@@ -15,6 +15,8 @@ from .permissions import IsAuthorOrReadOnly
 
 class PostViewSet(viewsets.ModelViewSet):
     pagination_class = PostPaginations
+    serializer_class = PostListSerializers
+    permission_classes = [permissions.AllowAny]
 
 
     def get_queryset(self):
@@ -29,13 +31,13 @@ class PostViewSet(viewsets.ModelViewSet):
             return PostCreateSerializer
         elif self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return UpdatePostSerializers
-        return PostListSerializers
+        return super().get_serializer_class()
 
     
     def get_permissions(self):
         if self.request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
             return [IsAuthorOrReadOnly()]
-        return [permissions.AllowAny()]
+        return super().get_permissions()
     
 
 
@@ -49,7 +51,7 @@ class ExplorePostViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, views
 
 class CommentCreateListApiView(generics.ListCreateAPIView):
     serializer_class = CommentSerializers
-    queryset = Comment.objects.prefetch_related('parent', 'user', 'post')
+    queryset = Comment.objects.select_related('parent', 'user', 'post')
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = CommentPaginations
 
@@ -71,14 +73,14 @@ class CommentCreateListApiView(generics.ListCreateAPIView):
 
 class CommentDetailUpdateApiView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CommentUpdateSerializers
-    queryset = Comment.objects.all()
+    queryset = Comment.objects.select_related('parent', 'user', 'post')
+    permission_classes = [permissions.IsAuthenticated]
     
 
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [IsAuthorOrReadOnly()]
-        return [permissions.IsAuthenticated()]
-
+        return super().get_permissions()
 
 
 class LikeViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
@@ -104,8 +106,9 @@ class LikeViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.Ge
                     'notification_type': 'like',
                 }
             )
-                if serializer.is_valid():
-                    serializers.save()
+                ser_data = NotificationsSerializers(serializer)
+                if ser_data.is_valid():
+                    self.perform_create(ser_data)
                 else:
                     return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
         return Response({'detail': 'Liked'}, status=status.HTTP_201_CREATED)
