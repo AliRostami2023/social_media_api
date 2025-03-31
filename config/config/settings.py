@@ -45,6 +45,7 @@ PACK = [
     'django_filters',
     'debug_toolbar',
     'drf_spectacular',
+    'channels',
 ]
 
 
@@ -187,4 +188,14 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'This api include authentication, post, comment, like, follow, notifications and ...',
     'VERSION': '1.0.1',
     'SERVE_INCLUDE_SCHEMA': False,
+}
+
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
 }
