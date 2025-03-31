@@ -1,15 +1,15 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from django.utils.translation import gettext_lazy as _
 from rest_framework import viewsets, mixins, generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter
 from uuid import uuid4
-from follower.views import NotificationsViewSet
-from follower.serializers import NotificationsSerializers
 from .paginations import PostPaginations, CommentPaginations
 from .serializers import *
 from .models import *
 from .permissions import IsAuthorOrReadOnly
+from follower.utils import create_and_send_notification
 
 
 
@@ -21,9 +21,9 @@ class PostViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.user.is_authenticated:
-            return Post.objects.select_related('orginal_post', 'user').prefetch_related('hashtag').filter(
+            return Post.objects.select_related('orginal_post', 'user').filter(
                 Q(user=self.request.user) | Q(public=True))
-        return Post.objects.select_related('orginal_post', 'user').prefetch_related('hashtag')
+        return Post.objects.select_related('orginal_post', 'user')
 
 
     def get_serializer_class(self):
@@ -61,13 +61,12 @@ class CommentCreateListApiView(generics.ListCreateAPIView):
 
         post_author = comment.post.user
         if post_author != self.request.user:
-            NotificationsViewSet.perform_create(
-                serializer=NotificationsSerializers(data={
-                    'recipient': post_author.id,
-                    'sender': self.request.user.id,
-                    'post': comment.post.id,
-                    'notification_type': 'comment',
-                })
+            create_and_send_notification(
+                recipient_id= post_author.id,
+                sender_id= self.request.user.id,
+                post_id= comment.post.id,
+                notification_type= 'comment',
+                message= _(f"{post_author.username} commented in {comment.post}")
             )
 
 
@@ -99,19 +98,14 @@ class LikeViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.Ge
 
         post_author = post.user
         if post_author != user:
-                serializer = NotificationsSerializers(data={
-                    'recipient': post_author.id,
-                    'sender': user.id,
-                    'post': post.id,
-                    'notification_type': 'like',
-                }
-            )
-                ser_data = NotificationsSerializers(serializer)
-                if ser_data.is_valid():
-                    self.perform_create(ser_data)
-                else:
-                    return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
-        return Response({'detail': 'Liked'}, status=status.HTTP_201_CREATED)
+                create_and_send_notification(
+                    recipient_id= post_author.id,
+                    sender_id= user.id,
+                    post_id= post.id,
+                    notification_type= 'like',
+                    message= _(f"{post_author.username} liked you on {post}")
+                    )
+                return Response({'detail': 'Liked'}, status=status.HTTP_201_CREATED)
 
 
     def destroy(self, request, post_pk=None):
@@ -150,19 +144,13 @@ class RepostViewSet(viewsets.ModelViewSet):
                 is_repost=True
             )
 
-            notifications_data = {
-                'recipient': original_post.user.id,
-                'sender': sender_id,
-                'notification_type': 'share',
-                'post': original_post.id,
-                'message': f"{request.user.username} reposted your post."
-            }
-
-            serializer = NotificationsSerializers(data=notifications_data)
-            if serializer.is_valid():
-                self.perform_create(serializer)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            create_and_send_notification(
+                recipinet_id = original_post.user.id,
+                sender_id = sender_id,
+                notification_type = 'share',
+                post_id= original_post.id,
+                message= _(f"{request.user.username} reposted your post.")
+            )
 
             return Response({'detail': 'Post reposted successfully.'}, status=status.HTTP_201_CREATED)
 

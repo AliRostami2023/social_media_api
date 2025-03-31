@@ -1,11 +1,10 @@
-from rest_framework import viewsets, mixins, permissions, status
+from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from django.core.exceptions import ValidationError
-from .serializers import FollowerSerializers, NotificationsSerializers
-from .models import Follower, Notification
-from .tasks import create_notifications_task
+from .serializers import FollowerSerializers
+from .models import Follower
+from .utils import create_and_send_notification
 
 
 User = get_user_model()
@@ -49,12 +48,11 @@ class FollowerViewSet(viewsets.ModelViewSet):
 
         follower_user = User.objects.get(id=followed_id)
         if follower_user != request.user:
-            NotificationsViewSet.perform_create(
-                serializer=NotificationsSerializers(data={
-                    'recipient': follower_user.id,
-                    'sender': follower.id,
-                    'notification_type': 'follow',
-                })
+            create_and_send_notification(
+                recipient_id=follower_user.author.id, 
+                sender_id=follower_user.id,    
+                notification_type='follow',
+                message= _(f"{follower_user.author.username} start folloeed you !")
             )
             return Response({'status': 'followed'}, status.HTTP_200_OK)
     
@@ -76,52 +74,3 @@ class FollowerViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         return super().get_permissions(*args, **kwargs)
 
-
-
-class NotificationsViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
-    queryset = Notification.objects.select_related('recipient', 'sender', 'post')
-    serializer_class = NotificationsSerializers
-    permission_classes = [permissions.IsAuthenticated]
-
-
-    def get_queryset(self):
-        return self.queryset.filter(recipient=self.request.user).order_by('-timestamp')
-    
-
-    def perform_create(self, serializer):
-        instance = serializer.save()
-        sender_id = self.request.user.id
-
-        if instance.notification_type == 'follow':
-            recipient_id = instance.recipient.id
-            message = _(f"{self.request.user.username} started following you !")
-        
-        elif instance.notification_type == 'comment':
-            if not instance.post:
-                raise ValidationError(_("Post is required for a 'comment' notification."))
-            recipient_id = instance.post.user.id
-            message = _(f"{self.request.user.username} commented on your post !")
-
-        elif instance.notification_type == 'like':
-            if not instance.post:
-                raise ValidationError(_("Post is required for a 'like' notification."))
-            recipient_id = instance.post.user.id
-            message = _(f"{self.request.user.username} liked your post.")
-        
-        elif instance.notification_type == 'share':
-            if not instance.post:
-                raise ValidationError(_('Post is required for a "share" notification.'))
-            recipient_id = instance.post.user.id
-            message = _(f"{self.request.user.username} shared your post.")
-
-        else:
-            raise ValidationError(_("Invalid notification type."))
-        
-
-        create_notifications_task.delay(
-            recipient_id = recipient_id,
-            sender_id = sender_id,
-            notification_type = instance.notification_type,
-            post = instance.post.id if instance.post else None,
-            message = message
-        )

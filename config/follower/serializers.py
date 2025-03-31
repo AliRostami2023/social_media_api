@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Follower, Notification
+from .models import Follower
 
 
 
@@ -8,10 +8,4 @@ class FollowerSerializers(serializers.ModelSerializer):
         model = Follower
         fields = ['id', 'follower', 'followed']
 
-
-
-class NotificationsSerializers(serializers.ModelSerializer):
-    class Meta:
-        model = Notification
-        fields = '__all__'
         
