@@ -1,7 +1,7 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
-from rest_framework import viewsets, mixins, generics, status, permissions
+from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter
 from uuid import uuid4
@@ -9,43 +9,63 @@ from .paginations import PostPaginations, CommentPaginations
 from .serializers import *
 from .models import *
 from .permissions import IsAuthorOrReadOnly
+from activity.utils import log_activity
 from follower.utils import create_and_send_notification
 
 
 
-class PostViewSet(viewsets.ModelViewSet):
+class CreatePostAPIView(generics.CreateAPIView):
+    queryset = Post.objects.select_related('user', 'orginal_post')
+    serializer_class = PostCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+
+class ListPostAPIView(generics.ListAPIView):
     pagination_class = PostPaginations
-    serializer_class = PostListSerializers
-    permission_classes = [permissions.AllowAny]
+    serializer_class = PostListSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 
     def get_queryset(self):
         if self.request.user.is_authenticated:
-            return Post.objects.select_related('orginal_post', 'user').filter(
+            return Post.objects.select_related('user', 'orginal_post').filter(
                 Q(user=self.request.user) | Q(public=True))
         return Post.objects.select_related('orginal_post', 'user')
 
 
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return PostCreateSerializer
-        elif self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            return UpdatePostSerializers
-        return super().get_serializer_class()
 
+class DetailPostAPIView(generics.RetrieveAPIView):
+    queryset = Post.objects.select_related('user', 'orginal_post')
+    serializer_class = PostDetailSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'slug'
+
+
+class UpdatePostAPIView(generics.UpdateAPIView):
+    queryset = Post.objects.select_related('user', 'orginal_post')
+    serializer_class = PostUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class DeletePostAPIView(generics.DestroyAPIView):
+    queryset = Post.objects.select_related('user', 'orginal_post')
+    serializer_class = PostUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
     
-    def get_permissions(self):
-        if self.request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
-            return [IsAuthorOrReadOnly()]
-        return super().get_permissions()
-    
 
 
-class ExplorePostViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    queryset = Post.objects.select_related('user', 'orginal_post').prefetch_related('hashtag').order_by('?')
+class ExplorePostAPIView(generics.ListAPIView, generics.RetrieveAPIView):
+    queryset = Post.objects.select_related('user', 'orginal_post').order_by('?')
     serializer_class = ExplorPostSerializers
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    search_fields = ['user__username', 'hashtag']
+    search_fields = ['user__username']
+
+    def get(self, request, *args, **kwargs):
+        if 'pk' in kwargs:
+            return self.retrieve(request, *args, **kwargs)
+        else:
+            return self.list(request, *args, **kwargs)
 
     
 
@@ -57,17 +77,29 @@ class CommentCreateListApiView(generics.ListCreateAPIView):
 
 
     def perform_create(self, serializer):
-        comment = serializer.save(user=self.request.user)
+        try:
+            comment = serializer.save(user=self.request.user)
 
-        post_author = comment.post.user
-        if post_author != self.request.user:
-            create_and_send_notification(
-                recipient_id= post_author.id,
-                sender_id= self.request.user.id,
-                post_id= comment.post.id,
-                notification_type= 'comment',
-                message= _(f"{post_author.username} commented in {comment.post}")
-            )
+            post_author = comment.post.user
+            if post_author != self.request.user:
+                create_and_send_notification(
+                    recipient_id= post_author.id,
+                    sender_id= self.request.user.id,
+                    post_id= comment.post.id,
+                    notification_type= 'comment',
+                    message= _(f"{post_author.username} commented in {comment.post}")
+                )
+
+                log_activity(
+                    user_id=self.request.user.id,
+                    activity_type='comment',
+                    post_id=comment.post.id,
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in CommentCreateListApiView: {str(e)}")
+
 
 
 class CommentDetailUpdateApiView(generics.RetrieveUpdateDestroyAPIView):
@@ -105,6 +137,13 @@ class LikeViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.Ge
                     notification_type= 'like',
                     message= _(f"{post_author.username} liked you on {post}")
                     )
+                
+                log_activity(
+                    user_id=user.id,
+                    activity_type='like',
+                    post_id=post.id,
+                )
+                
                 return Response({'detail': 'Liked'}, status=status.HTTP_201_CREATED)
 
 

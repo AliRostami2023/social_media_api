@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from core.models import CreateMixin
 
-
 User = get_user_model()
 
 
@@ -26,3 +25,4 @@ class Activity(CreateMixin):
 
     def __str__(self) -> str:
         return f"{self.user.username} - {self.activity_type}"
+

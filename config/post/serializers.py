@@ -11,7 +11,30 @@ class ExplorPostSerializers(serializers.ModelSerializer):
 class PostCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
-        fields = ['user', 'title', 'description', 'image', 'video', 'public']
+        fields = ['title', 'description', 'image', 'video', 'public']
+        read_only_fields = ['user']
+
+
+class PostListSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField()
+
+    class Meta:
+        model = Post
+        fields = '__all__'
+
+
+class PostDetailSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField()
+
+    class Meta:
+        model = Post
+        fields = '__all__'
+
+
+class PostUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Post
+        fields = ['title', 'description', 'video', 'image', 'public']
 
 
 
@@ -24,26 +47,6 @@ class RepostSerializers(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'title','slug', 'description',
                    'image', 'video', 'created', 'updated',
                      'public', 'like_count', 'orginal_post']
-
-
-
-
-class PostListSerializers(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
-
-    class Meta:
-        model = Post
-        fields = ['id', 'user', 'title','slug', 'description',
-                   'image', 'video', 'created', 'updated',
-                     'public', 'orginal_post', 'is_repost']
-
-
-
-class UpdatePostSerializers(serializers.ModelSerializer):
-    class Meta:
-        model = Post
-        fields = ['title', 'description', 'video', 'image', 'public']
-    
 
 
 class LikePostSerializers(serializers.ModelSerializer):

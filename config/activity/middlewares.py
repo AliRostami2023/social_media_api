@@ -1,33 +1,52 @@
-from django.utils import timezone
-from django.utils.deprecation import MiddlewareMixin
 from django.urls import resolve
-from django.contrib.auth import get_user_model
+from datetime import timedelta
+from django.utils import timezone
 from .models import Activity
-from .tasks import log_activity_task
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from django.contrib.auth.models import User
 
-User = get_user_model()
 
+class ProfileViewMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
 
-class ProfileViewActivityMiddleware(MiddlewareMixin):
+    def __call__(self, request):
+        response = self.get_response(request)
+        return response
+
     def process_view(self, request, view_func, view_args, view_kwargs):
-        if not request.user.is_authenticated:
-            return
-
-        current_url_name = resolve(request.path_info).url_name
-        if current_url_name == 'profile':
-            profile_user_id = view_kwargs.get('user_id')
-            if profile_user_id and int(profile_user_id) != request.user.id:
-                today = timezone.now().date()
-                already_viewed = Activity.objects.filter(
+        if request.user.is_authenticated:
+            resolved_url = resolve(request.path_info)
+        if resolved_url.url_name == 'profile-detail':
+            viewed_pk = view_kwargs.get('pk')
+            if viewed_pk and viewed_pk != request.user.username:
+                User.objects.get(id=viewed_pk)
+                viewed_page = f"/profile/{viewed_pk}/"
+                    
+                recent_activity = Activity.objects.filter(
                     user=request.user,
                     activity_type='view',
-                    viewed_page=current_url_name,
-                    timestamp__date=today
+                    viewed_page=viewed_page,
+                    created_at__gte=timezone.now() - timedelta(hours=1)
                 ).exists()
-
-                if not already_viewed:
-                    log_activity_task.delay(
-                        user=request.user.id,
+                
+                if not recent_activity:
+                    Activity.objects.create(
+                        user=request.user,
                         activity_type='view',
-                        viewed_page=current_url_name,
+                        viewed_page=viewed_page
                     )
+
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        f'activity_{request.user.id}',
+                        {
+                            'type': 'send_activity',
+                            'activity_type': 'view',
+                            'user': request.user.username,
+                            'viewed_page': f"/profile/{viewed_pk}/",
+                        }
+                    )
+        return None
+    
