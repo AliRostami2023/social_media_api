@@ -25,7 +25,7 @@
 - [Redis](https://redis.io/) (برای Broker و Cache)
 - [Docker](https://www.docker.com/)
 - [WebSocket (Django Channels)](https://channels.readthedocs.io/en/stable/)
-- [PostgreSQL](https://www.postgresql.org/) (یا هر پایگاه داده‌ی دلخواه)
+- [PostgreSQL](https://www.postgresql.org/)
 
 
 
