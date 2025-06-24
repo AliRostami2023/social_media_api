@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from slugify import slugify
+from django.utils.text import slugify
 from core.models import CreateMixin, UpdateMixin
 
 User = get_user_model()
@@ -34,7 +34,13 @@ class Post(CreateMixin, UpdateMixin):
 
     def save(self, *args, **kwargs):
         if not self.slug or (self.pk and Post.objects.get(pk=self.pk).title != self.title):
-            self.slug = slugify(self.title, allow_unicode=True)
+            base_slug = slugify(self.title, allow_unicode=True)
+            slug = base_slug
+            num = 1
+            while Post.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{num}"
+                num += 1
+            self.slug = slug
         super().save(*args, **kwargs)
 
 

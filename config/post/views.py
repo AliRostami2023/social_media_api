@@ -1,9 +1,10 @@
-from django_filters.rest_framework import DjangoFilterBackend
+from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
-from rest_framework import generics, status, permissions
+from rest_framework import generics, status, permissions, viewsets, mixins
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from uuid import uuid4
 from .paginations import PostPaginations, CommentPaginations
 from .serializers import *
@@ -18,6 +19,9 @@ class CreatePostAPIView(generics.CreateAPIView):
     queryset = Post.objects.select_related('user', 'orginal_post')
     serializer_class = PostCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 
@@ -66,52 +70,6 @@ class ExplorePostAPIView(generics.ListAPIView, generics.RetrieveAPIView):
             return self.retrieve(request, *args, **kwargs)
         else:
             return self.list(request, *args, **kwargs)
-
-    
-
-class CommentCreateListApiView(generics.ListCreateAPIView):
-    serializer_class = CommentSerializers
-    queryset = Comment.objects.select_related('parent', 'user', 'post')
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = CommentPaginations
-
-
-    def perform_create(self, serializer):
-        try:
-            comment = serializer.save(user=self.request.user)
-
-            post_author = comment.post.user
-            if post_author != self.request.user:
-                create_and_send_notification(
-                    recipient_id= post_author.id,
-                    sender_id= self.request.user.id,
-                    post_id= comment.post.id,
-                    notification_type= 'comment',
-                    message= _(f"{post_author.username} commented in {comment.post}")
-                )
-
-                log_activity(
-                    user_id=self.request.user.id,
-                    activity_type='comment',
-                    post_id=comment.post.id,
-                )
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error in CommentCreateListApiView: {str(e)}")
-
-
-
-class CommentDetailUpdateApiView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = CommentUpdateSerializers
-    queryset = Comment.objects.select_related('parent', 'user', 'post')
-    permission_classes = [permissions.IsAuthenticated]
-    
-
-    def get_permissions(self):
-        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
-            return [IsAuthorOrReadOnly()]
-        return super().get_permissions()
 
 
 class LikeViewSet(mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
@@ -195,3 +153,105 @@ class RepostViewSet(viewsets.ModelViewSet):
 
         except Post.DoesNotExist:
             return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+class CommentCreateListApiView(generics.ListCreateAPIView):
+    queryset = Comment.objects.select_related("user", "post", "reply")
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CommentCreateSerializers
+
+
+    def perform_create(self, serializer):
+        try:
+            post = get_object_or_404(Post, slug=self.kwargs['post_slug'])
+            serializer.save(user=self.request.user, post=post)
+
+            post_author = post.post.user
+            if post_author != self.request.user:
+                create_and_send_notification(
+                    recipient_id= post_author.id,
+                    sender_id= self.request.user.id,
+                    post_id= post.post.id,
+                    notification_type= 'comment',
+                    message= _(f"{post_author.username} commented in {post.post}")
+                )
+
+                log_activity(
+                    user_id=self.request.user.id,
+                    activity_type='comment',
+                    post_id=post.post.id,
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in CommentCreateListApiView: {str(e)}")
+
+
+
+class ListCommentAPIView(generics.ListAPIView):
+    serializer_class = CommentListSerializer
+    pagination_class = CommentPaginations
+
+
+    def get_queryset(self):
+        return Comment.objects.filter(
+            post__slug=self.kwargs['post_slug'],
+            parent=None
+        ).select_related('user', 'post', 'parent')
+
+
+
+class CommentUpdateApiView(generics.UpdateAPIView, generics.DestroyAPIView):
+    serializer_class = CommentUpdateSerializers
+    queryset = Comment.objects.select_related('parent', 'user', 'post')
+    permission_classes = [permissions.IsAuthenticated]
+
+
+    def get_queryset(self):
+        return Comment.objects.filter(
+            post__slug=self.kwargs['post_slug'],
+            parent=None
+        )
+
+
+    def get_serializer_class(self):
+        if self.request.method == "GET":
+            return CommentListSerializer
+        elif self.request.method in ["DELETE", "PUT", "PATCH"]:
+            return CommentUpdateSerializers
+        return super().get_serializer_class()
+    
+
+    def get_permissions(self):
+        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            return [IsAuthorOrReadOnly()]
+        return super().get_permissions()
+
+
+
+class ReplyCreateAPIView(generics.CreateAPIView):
+    serializer_class = ReplyCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        post = get_object_or_404(Post, slug=self.kwargs['post_slug'])
+        parent_comment = get_object_or_404(Comment, pk=self.kwargs['comment_id'])
+
+        if parent_comment.parent is not None:
+            raise serializers.ValidationError(_("Replay on replay is not allowed."))
+
+        serializer.save(user=self.request.user, post=post, parent=parent_comment)
+
+
+
+class ReplyUpdateDeleteAPIView(generics.UpdateAPIView, generics.DestroyAPIView):
+    serializer_class = ReplyUpdateSerializer
+    permission_classes = [permissions.IsAdminUser]
+    lookup_field = 'pk'
+
+    def get_queryset(self):
+        return Comment.objects.filter(
+            post__slug=self.kwargs['post_slug']
+        ).exclude(parent=None)
+    

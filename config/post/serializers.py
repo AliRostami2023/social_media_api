@@ -9,10 +9,11 @@ class ExplorPostSerializers(serializers.ModelSerializer):
 
 
 class PostCreateSerializer(serializers.ModelSerializer):
+    user = serializers.CharField(source="user.username", read_only=True)
+
     class Meta:
         model = Post
-        fields = ['title', 'description', 'image', 'video', 'public']
-        read_only_fields = ['user']
+        fields = ['id', 'user', 'title', 'description', 'image', 'video', 'public']
 
 
 class PostListSerializer(serializers.ModelSerializer):
@@ -34,7 +35,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
 class PostUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
-        fields = ['title', 'description', 'video', 'image', 'public']
+        fields = ['id', 'title', 'description', 'video', 'image', 'public']
 
 
 
@@ -53,14 +54,39 @@ class LikePostSerializers(serializers.ModelSerializer):
     class Meta:
         model = LikePost
         fields = ['id', 'user', 'post', 'created']
-    
 
 
-class CommentSerializers(serializers.ModelSerializer):
+class UserSimpleSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['username', 'avatar']
+
+    def get_avatar(self, obj):
+        request = self.context.get('request')
+        profile = getattr(obj, 'profile', None)
+        if profile and profile.avatar:
+            return request.build_absolute_uri(profile.avatar.url) if request else profile.avatar.url
+        return None
+
+
+class CommentCreateSerializers(serializers.ModelSerializer):
+    user = UserSimpleSerializer(read_only=True)
+    post = serializers.CharField(source="post.title", read_only=True)
+
     class Meta:
         model = Comment
-        fields = '__all__'
+        fields = ["id", "user", "post", "body"]
 
+
+class CommentListSerializer(serializers.ModelSerializer):
+    user = UserSimpleSerializer(read_only=True)
+    post = serializers.CharField(source="post.title")
+
+    class Meta:
+        model = Comment
+        fields = "__all__"
 
 
 class CommentUpdateSerializers(serializers.ModelSerializer):
@@ -68,3 +94,17 @@ class CommentUpdateSerializers(serializers.ModelSerializer):
         model = Comment
         fields = ['body']
         
+
+class ReplyCreateSerializer(serializers.ModelSerializer):
+    user = UserSimpleSerializer(read_only=True)
+    post = serializers.CharField(source="post.title", read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = "__all__"
+
+
+class ReplyUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ['body']
