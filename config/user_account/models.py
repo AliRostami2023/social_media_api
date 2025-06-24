@@ -1,7 +1,7 @@
-import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
+from django.utils.crypto import get_random_string
 from datetime import datetime, timedelta
 from core.models import CreateMixin, UpdateMixin
 from .managers import UserManager
@@ -71,7 +71,7 @@ class OtpCode(CreateMixin):
 
 class PasswordResetToken(CreateMixin):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset')
-    token = models.UUIDField(unique=True, default=uuid.uuid4)
+    token = models.CharField(max_length=300, unique=True, default=get_random_string(256))
     is_used = models.BooleanField(default=False)
 
 
